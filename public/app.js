@@ -1,5 +1,6 @@
-const API_URL = '/api/tasks';
 let currentFilter = 'all';
+let tasks = [];
+let nextId = 1;
 
 // DOM Elements
 const taskForm = document.getElementById('taskForm');
@@ -8,20 +9,30 @@ const taskDescription = document.getElementById('taskDescription');
 const tasksList = document.getElementById('tasksList');
 const filterBtns = document.querySelectorAll('.filter-btn');
 
-// Fetch and display all tasks
-async function fetchTasks() {
-    try {
-        const response = await fetch(API_URL);
-        const tasks = await response.json();
-        displayTasks(tasks);
-    } catch (error) {
-        console.error('Error fetching tasks:', error);
-        tasksList.innerHTML = '<div class="empty-state">Error loading tasks</div>';
+// Load tasks from localStorage
+function loadTasks() {
+    const saved = localStorage.getItem('tasks');
+    if (saved) {
+        tasks = JSON.parse(saved);
+        nextId = Math.max(...tasks.map(t => t.id), 0) + 1;
+    } else {
+        tasks = [
+            { id: 1, title: 'Sample Task 1', description: 'This is a sample task', completed: false },
+            { id: 2, title: 'Sample Task 2', description: 'Another sample task', completed: true }
+        ];
+        nextId = 3;
+        saveTasks();
     }
+    displayTasks();
+}
+
+// Save tasks to localStorage
+function saveTasks() {
+    localStorage.setItem('tasks', JSON.stringify(tasks));
 }
 
 // Display tasks based on current filter
-function displayTasks(tasks) {
+function displayTasks() {
     let filteredTasks = tasks;
 
     if (currentFilter === 'active') {
@@ -52,71 +63,43 @@ function displayTasks(tasks) {
 }
 
 // Add new task
-taskForm.addEventListener('submit', async (e) => {
+taskForm.addEventListener('submit', (e) => {
     e.preventDefault();
 
     const newTask = {
+        id: nextId++,
         title: taskTitle.value.trim(),
-        description: taskDescription.value.trim()
+        description: taskDescription.value.trim(),
+        completed: false
     };
 
-    try {
-        const response = await fetch(API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(newTask)
-        });
+    tasks.push(newTask);
+    saveTasks();
 
-        if (response.ok) {
-            taskTitle.value = '';
-            taskDescription.value = '';
-            fetchTasks();
-        }
-    } catch (error) {
-        console.error('Error adding task:', error);
-        alert('Failed to add task');
-    }
+    taskTitle.value = '';
+    taskDescription.value = '';
+    displayTasks();
 });
 
 // Toggle task completion
-async function toggleTask(id) {
-    try {
-        const response = await fetch(`${API_URL}/${id}`);
-        const task = await response.json();
-
-        await fetch(`${API_URL}/${id}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ ...task, completed: !task.completed })
-        });
-
-        fetchTasks();
-    } catch (error) {
-        console.error('Error toggling task:', error);
-        alert('Failed to update task');
+function toggleTask(id) {
+    const task = tasks.find(t => t.id === id);
+    if (task) {
+        task.completed = !task.completed;
+        saveTasks();
+        displayTasks();
     }
 }
 
 // Delete task
-async function deleteTask(id) {
+function deleteTask(id) {
     if (!confirm('Are you sure you want to delete this task?')) {
         return;
     }
 
-    try {
-        await fetch(`${API_URL}/${id}`, {
-            method: 'DELETE'
-        });
-
-        fetchTasks();
-    } catch (error) {
-        console.error('Error deleting task:', error);
-        alert('Failed to delete task');
-    }
+    tasks = tasks.filter(t => t.id !== id);
+    saveTasks();
+    displayTasks();
 }
 
 // Filter tasks
@@ -125,7 +108,7 @@ filterBtns.forEach(btn => {
         filterBtns.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         currentFilter = btn.dataset.filter;
-        fetchTasks();
+        displayTasks();
     });
 });
 
@@ -142,4 +125,4 @@ function escapeHtml(text) {
 }
 
 // Initial load
-fetchTasks();
+loadTasks();
